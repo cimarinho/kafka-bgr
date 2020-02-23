@@ -1,31 +1,37 @@
 version: '2'
-
 services:
-  # this is our kafka cluster.
-  kafka-cluster:
-    image: landoop/fast-data-dev:latest
-    environment:
-      ADV_HOST: 127.0.0.1         # Change to 192.168.99.100 if using Docker Toolbox
-      RUNTESTS: 0                 # Disable Running tests so the cluster starts faster
-    volumes:
-      - /var/cas:/tmp/cas
+  zookeeper:
+    image: debezium/zookeeper:1.1
     ports:
-      - 2181:2181                 # Zookeeper
-      - 3030:3030                 # Landoop UI
-      - 8081-8083:8081-8083       # REST Proxy, Schema Registry, Kafka Connect ports
-      - 9581-9585:9581-9585       # JMX Ports
-      - 9092:9092                 # Kafka Broker
-  redis:
-    image: 'bitnami/redis:5.0'
-    environment:
-      # ALLOW_EMPTY_PASSWORD is recommended only for development.
-      - ALLOW_EMPTY_PASSWORD=yes
-      - REDIS_DISABLE_COMMANDS=FLUSHDB,FLUSHALL
+      - 2181:2181
+      - 2888:2888
+      - 3888:3888
+  kafka:
+    image: debezium/kafka:1.1
     ports:
-      - '6379:6379'
-    volumes:
-      - 'redis_data:/bitnami/redis/data'
-
-volumes:
-  redis_data:
-    driver: local
+      - 9092:9092
+    links:
+      - zookeeper
+    environment:
+      - ZOOKEEPER_CONNECT=zookeeper:2181
+  mysql:
+    image: debezium/example-mysql:1.1
+    ports:
+      - 3306:3306
+    environment:
+      - MYSQL_ROOT_PASSWORD=debezium
+      - MYSQL_USER=mysqluser
+      - MYSQL_PASSWORD=mysqlpw
+  connect:
+    image: debezium/connect:1.1
+    ports:
+      - 8083:8083
+    links:
+      - kafka
+      - mysql
+    environment:
+      - BOOTSTRAP_SERVERS=kafka:9092
+      - GROUP_ID=1
+      - CONFIG_STORAGE_TOPIC=my_connect_configs
+      - OFFSET_STORAGE_TOPIC=my_connect_offsets
+      - STATUS_STORAGE_TOPIC=my_connect_statuses
